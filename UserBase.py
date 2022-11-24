@@ -1,107 +1,84 @@
-#from scipy.stats.stats import pearsonr
-from scipy.sparse import coo_matrix
-import numpy as np
-from sklearn import metrics
-import pandas as pd
-# def pearson(X, Y = None):
-#     x = X.shape[0]
-#     y = X.shape[1]
-#     a = np.zeros((x, x))
-#     u = np.zeros((x, y))
-#     temp = 0
-    
-#     for i in range(x):
-#         for j in range(y):
-#             u[i][j] = X[i, j]
-#     for i in range(x):
-#         for j in range(x):
-#             temp = pearsonr(u[i], u[j])[0]
-#             a[i][j] =  temp if not np.isnan(temp) else 0
-    
-#     return a
 
+import numpy as np
 
 class NBCF:
 
-    def __init__(self, Y, k, uuCF = 1, dist_f = metrics.pairwise.cosine_similarity, limit = 10):
-        self.uuCF = uuCF
-        self.f = open('danhgiaNBCF.dat', 'a+') 
-        self.Y = Y if uuCF else Y[:, [1, 0, 2]]  #user_id,item_id,rating
+    def __init__(self, Y, k=2):
+        self.Y = Y
         self.Ybar = None
         self.k = k
-        self.limit = limit
-        self.dist_func = dist_f
         self.users_count = int(np.max(self.Y[:, 0])) + 1
         self.items_count = int(np.max(self.Y[:, 1])) + 1
-        self.Pu = None
-        self.Ru = None
-
+        self.arrnormalizeY = self.normalizeY()
+        self.dist = self.similarity()
 
     def normalizeY(self):
-            users = self.Y[:, 0]
-            self.Ybar = self.Y.copy()
-            self.mu = np.zeros((self.users_count,))
-            for i in range(self.users_count):
-                ids = np.where(users == i)[0].astype(int)
-                ratings = self.Y[ids, 2]
-                m = np.mean(ratings)
-                if np.isnan(m):
-                    m = 0
-                self.mu[i] = m
-                self.Ybar[ids, 2] = ratings - self.mu[i]
-            self.Ybar = coo_matrix((self.Ybar[:, 2],
-                (self.Ybar[:, 1], self.Ybar[:, 0])), (self.items_count, self.users_count))
-            self.Ybar = self.Ybar.tocsr()
+        users = self.Y[:, 0]
+        self.Ybar = self.Y.copy()
+        arrNormalize = np.zeros((self.users_count,self.items_count))
+        for i in range(self.users_count):
+            ids = np.where(users == i)[0].astype(int)
+            ratings = self.Y[ids, 2]
+            self.Ybar[ids, 2] = ratings - np.nanmean(ratings)
+            arrNormalize[i,:] = np.where(np.isnan(self.Ybar[ids, 2]),0,self.Ybar[ids, 2])
+        return arrNormalize
 
-    def pred(self, u, i, normalized = 1):
-        ids = np.where(self.Y[:, 1] == i)[0].astype(int)
-        if ids == []:
-            return 0
-        users = (self.Y[ids, 0]).astype(int)
-        sim = self.S[u, users]
-        a = np.argsort(sim)[-self.k:]
-        nearest = sim[a]
-        r = self.Ybar[i, users[a]]
-        
-        if normalized:
-            return (r*nearest)[0]/(np.abs(nearest).sum() + 1e-8)
+    def distance(self,x1, x2):
+        return round(np.dot(x1,x2)/(np.linalg.norm(x1) * np.linalg.norm(x2)),2)
 
-        return (r*nearest)[0]/(np.abs(nearest).sum() + 1e-8) + self.mu[u]
-        
-        
-    def _pred(self, u, i, normalized = 1):
-        if self.uuCF: return self.pred(u, i, normalized)
-        return self.pred(i, u, normalized)
+    def similarity(self):
+        arrDist =  np.zeros((self.users_count,self.users_count))
+        for i in range(self.users_count):
+            for j in range(self.users_count):
+                if(i == j):
+                    arrDist[i][j] = 1
+                else:
+                    arrDist[i,j] = self.distance(self.arrnormalizeY[i],self.arrnormalizeY[j])
+        return arrDist
 
+    def pred(self, user, item):
+        arrRatingForItem = []
+        for i in range(self.arrnormalizeY.__len__()):
+            if self.arrnormalizeY[i][item] != 0:
+                arrRatingForItem.append([self.arrnormalizeY[i][item],i])
+        sim = []
+        def secondElement(elem):
+            return elem[1]
+        for i in range(arrRatingForItem.__len__()):
+            i1 = self.dist[user, arrRatingForItem[i][1]]
+            sim.append([arrRatingForItem[i][0], i1])
 
+        sim.sort(key=secondElement,reverse=True)
+        if self.k > sim.__len__(): self.k = sim.__len__()
 
+        numerator = 0 
+        denominator = 0
+        for i in range(self.k):
+            numerator = numerator + sim[i][1]*sim[i][0]
+            denominator = denominator + abs(sim[i][1])
+        return round(numerator/denominator,2)
 
-# arr = np.array([
-#     [0,0,5],[0,1,4],[0,2,None],[0,3,2],[0,4,2],
-#     [1,0,5],[1,1,None],[1,2,4],[1,3,2],[1,4,0],
-#     [2,0,2],[2,1,None],[2,2,1],[2,3,3],[2,4,4],
-#     [3,0,0],[3,1,0],[3,2,None],[3,3,4],[3,4,None],
-#     [4,0,1],[4,1,None],[4,2,None],[4,3,4],[4,4,None],
-#     [5,0,None],[5,1,2],[5,2,1],[5,3,None],[5,4,None],
-#     [6,0,None],[6,1,None],[6,2,1],[6,3,4],[6,4,5],
-# ])
+    def recommend(self):
+        recommended_items = np.zeros((self.items_count,self.users_count))
+        for i in range(self.arrnormalizeY.__len__()):
+            for j in range(self.arrnormalizeY[i].__len__()):
+                if(self.arrnormalizeY[i][j] == 0):
+                    recommended_items[j][i] = self.pred(i,j)
+                else:
+                    recommended_items[j][i] = round(self.arrnormalizeY[i][j],2)
+        return recommended_items
+
 arr = np.array([
-    [0,0,5],[0,1,4],[0,2,0],[0,3,2],[0,4,2],
-    [1,0,5],[1,1,0],[1,2,4],[1,3,2],[1,4,0],
-    [2,0,2],[2,1,0],[2,2,1],[2,3,3],[2,4,4],
-    [3,0,0],[3,1,0],[3,2,0],[3,3,4],[3,4,0],
-    [4,0,1],[4,1,0],[4,2,0],[4,3,4],[4,4,0],
-    [5,0,0],[5,1,2],[5,2,1],[5,3,0],[5,4,0],
-    [6,0,0],[6,1,0],[6,2,1],[6,3,4],[6,4,5],
+    [0,0,5],[0,1,4],[0,2,np.nan],[0,3,2],[0,4,2],
+    [1,0,5],[1,1,np.nan],[1,2,4],[1,3,2],[1,4,0],
+    [2,0,2],[2,1,np.nan],[2,2,1],[2,3,3],[2,4,4],
+    [3,0,0],[3,1,0],[3,2,np.nan],[3,3,4],[3,4,np.nan],
+    [4,0,1],[4,1,np.nan],[4,2,np.nan],[4,3,4],[4,4,np.nan],
+    [5,0,np.nan],[5,1,2],[5,2,1],[5,3,np.nan],[5,4,np.nan],
+    [6,0,np.nan],[6,1,np.nan],[6,2,1],[6,3,4],[6,4,5],
 ])
 
-#print(arr[:,0])
-
-userBase = NBCF(arr,3,1)
-userBase.normalizeY()
-print(userBase.Ybar)
-
-# test = [1 , 2 ,3 ,np.nan]
-# print(sum(test))
+userBase = NBCF(arr)
+print(userBase.recommend())
 
 
