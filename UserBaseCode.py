@@ -19,8 +19,11 @@ class NBCF:
         for i in range(self.users_count):
             ids = np.where(users == i)[0].astype(int)
             ratings = self.Y[ids, 2]
+            #print(ratings)
+            # self.Ybar[ids, 2] = np.round(ratings - np.nanmean(ratings),2)
             self.Ybar[ids, 2] = ratings - np.nanmean(ratings)
             arrNormalize[i,:] = np.where(np.isnan(self.Ybar[ids, 2]),0,self.Ybar[ids, 2])
+        #print(self.mu)
         return arrNormalize
 
     def distance(self,x1, x2):
@@ -36,11 +39,15 @@ class NBCF:
                     arrDist[i,j] = self.distance(self.arrnormalizeY[i],self.arrnormalizeY[j])
         return arrDist
 
+
     def pred(self, user, item):
+        #get rating item for users
         arrRatingForItem = []
         for i in range(self.arrnormalizeY.__len__()):
             if self.arrnormalizeY[i][item] != 0:
                 arrRatingForItem.append([self.arrnormalizeY[i][item],i])
+        #print(arrRatingForItem,)
+
         sim = []
         def secondElement(elem):
             return elem[1]
@@ -49,6 +56,7 @@ class NBCF:
             sim.append([arrRatingForItem[i][0], i1])
 
         sim.sort(key=secondElement,reverse=True)
+        #print(sim)
         if self.k > sim.__len__(): self.k = sim.__len__()
 
         numerator = 0 
@@ -66,6 +74,7 @@ class NBCF:
                     recommended_items[j][i] = self.pred(i,j)
                 else:
                     recommended_items[j][i] = round(self.arrnormalizeY[i][j],2)
+
         return recommended_items
 
 arr = np.array([
@@ -79,6 +88,8 @@ arr = np.array([
 ])
 
 userBase = NBCF(arr)
-# print(userBase.recommend())
+# userBase.normalizeY()
+# userBase.similarity()
+print(userBase.recommend())
 
 

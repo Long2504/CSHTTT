@@ -40,10 +40,12 @@ class NBCF:
         return arrDist
 
     def pred(self, user, item):
+        print("-------",user,"---",item,"----------")
         arrRatingForItem = []
         for i in range(self.arrnormalizeY.__len__()):
             if self.arrnormalizeY[i][user] != 0:
                 arrRatingForItem.append([self.arrnormalizeY[i][user],i])
+        #print(arrRatingForItem,"arrRatingForItem")
         sim = []
         def secondElement(elem):
             return elem[1]
@@ -52,13 +54,18 @@ class NBCF:
             sim.append([arrRatingForItem[i][0], i1])
         
         sim.sort(key=secondElement,reverse=True)
+        print(sim,"sim")
         if self.k > sim.__len__():  self.k = sim.__len__()
+        print("K= ",self.k)
         numerator = 0 
         denominator = 0
         for i in range(self.k):
+            print("sim[i][0] = ",sim[i][0],"sim[i][1]=",sim[i][1])
             numerator = numerator + sim[i][1]*sim[i][0]
             denominator = denominator + abs(sim[i][1])
+        print("-------------------------------------")
         if denominator != 0:
+            print(round(numerator/denominator,2),"result")
             return round(numerator/denominator,2)
         return 0
 
@@ -83,6 +90,10 @@ arr = np.array([
 ])
 
 itemBase = NBCF(arr,2)
-print(itemBase.recommend(),"recommend")
+#print(itemBase.arrnormalizeY,"arrnormalizeY")
+# print(itemBase.dist)
+# print(itemBase.dist,"dist")
+
+# print(itemBase.recommend(),"recommend")
 
 
